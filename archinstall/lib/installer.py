@@ -3,6 +3,7 @@ import platform
 import re
 import shlex
 import subprocess
+import tempfile
 import textwrap
 import time
 from collections.abc import Callable
@@ -2134,13 +2135,14 @@ def accessibility_tools_in_use() -> bool:
 
 
 def run_custom_user_commands(commands: list[str], installation: Installer) -> None:
-	for index, command in enumerate(commands):
-		script_path = LPath(f'/var/tmp/user-command.{index}.sh')
-		chroot_path = installation.target / script_path.relative_to_root()
+	for command in commands:
+		fd, chroot_path = tempfile.mkstemp(dir=installation.target / LPath('/var/tmp').relative_to_root(), suffix='.sh')
+		script_path = LPath('/') / Path(chroot_path).relative_to(installation.target)
 
 		info(f'Executing custom command "{command}" ...')
-		chroot_path.write_text(command)
+		with os.fdopen(fd, 'w') as f:
+			f.write(command)
 
 		SysCommand(f'arch-chroot -S {installation.target} bash {script_path}')
 
-		chroot_path.unlink()
+		Path(chroot_path).unlink()
